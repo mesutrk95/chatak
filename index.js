@@ -54,6 +54,10 @@ io.on("connection", (socket) => {
     // }) 
 
     socket.on("get-random-user", () => {
+        let u = users.get(socket.id)
+        if(u){
+            console.log('get-random-user : ' , u.userId);
+        }
         
         if(searchingUsers.size == 0){ 
             searchingUsers.add(socket.id)

@@ -58,6 +58,7 @@ function setupPeerJs(){
     }); 
     
     peer.on("open", async (userId) => { 
+        console.log('peerjs user :' , userId);
         socket.emit('join', userId) 
     })
 
@@ -82,7 +83,7 @@ function setupPeerJs(){
     });
 
     peer.on('error', (err) => {
-        console.log('peer error', err);
+        console.log('guest peer error', err);
     });
     peer.on('disconnected', (err) => {
         console.log('peer disconnected', err);
@@ -111,6 +112,9 @@ function callToUser(userId){
             socket.emit('get-random-user')
         }
     }) 
+    call.on('error' , (error)=>{
+        console.log('guest peer error' ,error); 
+    }) 
 }
 
 socket.on('connect',async () => {
@@ -127,7 +131,7 @@ socket.on('joined',async () => {
 
 socket.on('random-user',async (data) => {
     console.log('on random-user', data); 
-    searching = false;
+    // searching = false;
     if(data.action == 'call'){
         callToUser(data.userId);
     }else if(data.action == 'receive'){ 
@@ -148,13 +152,17 @@ function disconnectFromUser(){
 }
 
 function startAutoSearch(){  
+    // searching = true;
+    if(autoSearch){ 
+        disconnectFromUser();
+    }else{ 
+        $('#btn-stop').show()
+        $('#btn-start').html('Next')
+    
+        disconnectFromUser();
+        socket.emit('get-random-user')
+    }
     autoSearch = true;
-    searching = true;
-    $('#btn-stop').show()
-    $('#btn-start').html('Next')
- 
-    disconnectFromUser();
-    socket.emit('get-random-user')
 }
   
 function stopAutoSearch(){ 
