@@ -1,0 +1,71 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap");
+
+:root {
+  --main-darklg: #1d2635;
+  --main-dark: #161d29;
+  --primary-color: #2f80ec;
+  --main-light: #eeeeee;
+  font-family: "Poppins", sans-serif;
+  position: relative;
+}
+body{
+  padding: 0;
+  margin: 0;
+  font-family: "Poppins", sans-serif;
+}
+.video-panel{ 
+  display: flex;
+  height: calc(100vh - 55px);
+} 
+
+.video-panel video{ 
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+}
+
+.left-panel{ 
+  width: 50%;
+  display: inline-block;
+  position: relative;
+  border-right: solid 1px rgb(31, 31, 31);
+  background-color: rgb(216, 97, 97);
+}
+ 
+.right-panel{ 
+  width: 50%;
+  display: inline-block;
+  position: relative;
+  background-color: rgb(99, 182, 207);
+}
+
+.panel-overlay{
+  display: flex;
+  justify-content: center;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+}
+.panel-overlay .content{ 
+  align-self: center;
+}
+
+
+.options {
+  background-color: rgb(29, 29, 29);
+  text-align: right;
+  padding: 10px;
+}
+.options button {
+  padding: 10px;
+  background-color: rgb(8, 126, 110);
+  border: none;
+  margin-left: 5px;
+  color: white;
+  border-radius: 5px;
+}
+.options label{ 
+  color: white;
+}

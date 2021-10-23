@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"> 
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>videoChatApp</title>
+        <link rel="stylesheet" href="style.css" />
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="https://kit.fontawesome.com/c939d0e917.js"></script>
+        <script src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
+ 
+    </head>
+
+    <body>  
+        <div class="video-panel">
+            <div class="left-panel">
+                <video id="my-video" ></video>
+                <div class="panel-overlay"> 
+                    <div class="content">My Video</div>
+                </div>
+            </div>
+            <div class="right-panel"> 
+                <video id="guest-video" ></video>
+                <div class="panel-overlay">
+                    <div class="content">Guest Video</div>
+                </div>
+            </div>
+        </div>
+        <div class="options">
+            <label id="my-status"></label>
+            <button id="btn-stop" onclick="stopAutoSearch()" style="display: none;">Stop</button>
+            <button id="btn-start" onclick="startAutoSearch()">Start</button>
+        </div>
+    </body>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="script.js"></script>
+
+</html>
