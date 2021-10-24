@@ -79,12 +79,6 @@ async function setupMyVideo(){
             console.log('track added');
             peerConnection.addTrack(track, myVideoStream)
         });
-        // guestVideoElement.addEventListener("loadedmetadata", () => {
-        //     guestVideoElement.play(); 
-        //     console.log('loadedmetadata');
-        // }); 
-        // peerConnection.addTrack(myVideoStream.getTracks()[0], myVideoStream)
-        // peerConnection.addTransceiver("video"); 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(new RTCSessionDescription(offer));
 
@@ -115,15 +109,9 @@ async function setupMyVideo(){
         
         
         peerConnection.ontrack = function({ streams: [stream] }) {
-            guestVideoElement.srcObject = stream;
-            // guestVideoElement.play() 
+            guestVideoElement.srcObject = stream; 
             console.log('guest stream received', stream);
         };
-
-        guestVideoElement.addEventListener("loadedmetadata", () => {
-            guestVideoElement.play(); 
-            console.log('loadedmetadata');
-        }); 
 
         myVideoStream.getTracks().forEach(track => { 
             console.log('track added');

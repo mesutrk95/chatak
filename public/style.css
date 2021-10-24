@@ -59,7 +59,11 @@ body{
   top: unset;
   background-color: rgba(0, 0, 0, 0.7);
   color: white;
-  padding: 5px 0;
+  padding: 8px 0;
+
+  width: 60%;
+  left: 20%;
+  border-radius: 10px 10px 0 0;
 }
 
 
