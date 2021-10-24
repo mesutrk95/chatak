@@ -28,6 +28,7 @@ app.get("/", (req, res) => {
 // });
 
 let users = new Map();
+let liveChats = new Map();
 let searchingUsers = new Set();
 
 io.on("connection", (socket) => {
@@ -82,6 +83,10 @@ io.on("connection", (socket) => {
         } 
     }); 
 
+    socket.on('conn-destroy', (data) => {
+        console.log('conn-destroy => ' + socket.id); 
+        socket.io[data.guestId].emit('conn-destroy', data.userId)
+    })
     socket.on('disconnect', (e) => {
         console.log('disconnect => ' + socket.id);
         users.delete(socket.id)

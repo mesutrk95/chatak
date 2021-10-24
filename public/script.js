@@ -139,13 +139,23 @@ socket.on('random-user',async (data) => {
     }
 })  
  
+socket.on('conn-destroy',async (userId) => {
+    if(currentGuestConnection && currentGuestConnection.peer == userId){
+        console.log('guest peer closed');
+        if(autoSearch){
+            socket.emit('get-random-user')
+        }
+    }
+})  
+ 
 socket.on('disconnect',async () => {
     console.log('socket disconnect'); 
 }) 
 
 function disconnectFromUser(){
     if(currentGuestConnection){
-        console.log(currentGuestConnection);
+        console.log('destroy media conn' , currentGuestConnection);
+        socket.emit('conn-destroy', currentGuestConnection.peer)
         currentGuestConnection.close()
         currentGuestConnection =null;
     }
