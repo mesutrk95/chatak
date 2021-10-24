@@ -1,25 +1,22 @@
 
 
-const socket = io("/");
-let peer = null;
-
-let myStatus = 'connecting';
-let autoSearch =  false;
-
 let myVideoStream = null;
 const myVideoElement = document.getElementById("my-video");
+myVideoElement.muted = true; 
 const myStatusElement = document.getElementById("my-status");
 const guestVideoElement = document.getElementById("guest-video");
 
-let currentGuestConnection;
+let peerConnection = null
+let guest = null;
 
-myVideoElement.muted = true; 
- 
-function setStatus(status){
-    // myStatus = status;
-    myStatusElement.innerHTML = status;
+function authUser(username){
+    return new Promise((resolve, reject)=>{ 
+        $.post( "/auth", { username })
+            .done(function( data ) {
+                resolve(data.result);
+        });  
+    })
 }
-
 
 function getUserMediaSync (options){
     return new Promise((resolve, reject)=>{
@@ -32,7 +29,7 @@ function getUserMediaSync (options){
         })  
     }) 
 }
-  
+
 async function setupMyVideo(){
     try{
         myVideoStream = await getUserMediaSync();  
@@ -43,219 +40,177 @@ async function setupMyVideo(){
     }catch(ex){
         console.error(ex);
     }
-}
+} 
 
-function setupPeerJs(){
-    if(peer && peer.open) {
-        socket.emit('join', userId)
-        return;
+(async ()=>{
+    const username = 'user_' + Math.floor(Math.random() * 900000 +100000 )
+    let user = await authUser(username)
+    console.log('user', user);
+    $('#my-username').html(username)
+
+    const socket = io("/" ,{
+        auth: { token :  user.token },
+        query : { username }
+    });
+
+    
+    async function makeCall(toSocketId){
+        peerConnection = new RTCPeerConnection();
+        peerConnection.oniceconnectionstatechange = function(e) {
+            if(peerConnection.iceConnectionState == 'disconnected') {
+                console.log('Disconnected');
+            }
+            console.log('oniceconnectionstatechange' ,e);
+        }
+        peerConnection.onconnectionstatechange = function(e) {
+            console.log('onconnectionstatechange' ,e);
+        }
+        peerConnection.onicecandidate = function(e) {
+            console.log('onicecandidate' ,e); 
+            if(e.candidate){
+                socket.emit('ice-candidate', { to : guest.socket , candidate : e.candidate })
+            }
+        }
+        peerConnection.ontrack = function({ streams: [stream] }) {
+            guestVideoElement.srcObject = stream;  
+            console.log('guest stream received', stream);
+        };
+        myVideoStream.getTracks().forEach(track => { 
+            console.log('track added');
+            peerConnection.addTrack(track, myVideoStream)
+        });
+        // guestVideoElement.addEventListener("loadedmetadata", () => {
+        //     guestVideoElement.play(); 
+        //     console.log('loadedmetadata');
+        // }); 
+        // peerConnection.addTrack(myVideoStream.getTracks()[0], myVideoStream)
+        // peerConnection.addTransceiver("video"); 
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(new RTCSessionDescription(offer));
+
+        console.log('calling', offer);
+        socket.emit("make-call", { 
+            offer, 
+            to : toSocketId 
+        });
     }
 
-    peer = new Peer(undefined, {
-        path: "/peerjs",
-        host: "/",
-        port: "3030",
-    }); 
-    
-    peer.on("open", async (userId) => { 
-        console.log('peerjs user :' , userId);
-        socket.emit('join', userId) 
-    })
-
-    peer.on("call", (guestConnection) => {
-        console.log('call from : ' , guestConnection);
-        currentGuestConnection = guestConnection
-        currentGuestConnection.answer(myVideoStream);
-        currentGuestConnection.on("stream", (guestVideoStream) => {
-            // console.log('stream from : ' ,userVideoStream ); 
-            guestVideoElement.srcObject = guestVideoStream;
-            guestVideoElement.addEventListener("loadedmetadata", () => {
-                guestVideoElement.play(); 
-            }); 
-        });
-
-        currentGuestConnection.on('close' , ()=>{
-            console.log('guest peer closed');
-            if(autoSearch){
-                socket.emit('get-random-user')
+    async function answerToCall(data){ 
+        peerConnection = new RTCPeerConnection();
+        peerConnection.oniceconnectionstatechange = function(e) {
+            if(peerConnection.iceConnectionState == 'disconnected') {
+                console.log('Disconnected');
             }
-        })
-    });
+            console.log('oniceconnectionstatechange' ,e);
+        }
+        peerConnection.onconnectionstatechange = function(e) {
+            console.log('onconnectionstatechange' ,e);
+        }
+        peerConnection.onicecandidate = function(e) {
+            console.log('onicecandidate' , e.candidate);
+            if(e.candidate){
+                socket.emit('ice-candidate', { to : guest.socket , candidate : e.candidate })
+            }
+        }
+        
+        
+        peerConnection.ontrack = function({ streams: [stream] }) {
+            guestVideoElement.srcObject = stream;
+            // guestVideoElement.play() 
+            console.log('guest stream received', stream);
+        };
 
-    peer.on('error', (err) => {
-        console.log('guest peer error', err);
-    });
-    peer.on('disconnected', (err) => {
-        console.log('peer disconnected', err);
-    });
-}
-
-function joined(){
-    myStatus = 'ready';
-}
-
-function callToUser(userId){ 
-    const call = peer.call(userId, myVideoStream); 
-    console.log('call obj', call);
-    currentGuestConnection = call;
-    call.on("stream", guestVideoStream => {
-        console.log('stream-from : ' ,userId , guestVideoStream);  
-
-        guestVideoElement.srcObject = guestVideoStream;
         guestVideoElement.addEventListener("loadedmetadata", () => {
             guestVideoElement.play(); 
+            console.log('loadedmetadata');
         }); 
-    });
-    call.on('close' , ()=>{
-        console.log('guest peer closed');
-        if(autoSearch){
-            socket.emit('get-random-user')
-        }
+
+        myVideoStream.getTracks().forEach(track => { 
+            console.log('track added');
+            peerConnection.addTrack(track, myVideoStream)
+        });
+        // peerConnection.addTrack(myVideoStream.getTracks()[0], myVideoStream)
+        // peerConnection.addTransceiver("video"); 
+
+        await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(data.offer)
+        );
+        const answer = await peerConnection.createAnswer();
+        // setTimeout(async () => { 
+            await peerConnection.setLocalDescription(new RTCSessionDescription(answer));  
+        // }, 3000);
+        
+        console.log('answered', answer); 
+
+        socket.emit('call-answer', {
+            answer,
+            to : data.from
+        })
+
+    }
+
+    socket.on('connect',async () => {
+        console.log('on connected-to-server'); 
+        setStatus('connected-to-server');  
+        await setupMyVideo()   
     }) 
-    call.on('error' , (error)=>{
-        console.log('guest peer error' ,error); 
+    
+    socket.on('call',async (data) => { 
+        console.log('on call', data);  
+        
+        answerToCall(data)
     }) 
-}
-
-socket.on('connect',async () => {
-    console.log('on connected-to-server');
-    setStatus('connected-to-server');
-    await setupMyVideo()
-    await setupPeerJs() 
-}) 
-socket.on('joined',async () => { 
-    console.log('on joined'); 
-    setStatus('joined'); 
-    await joined();
-}) 
-
-socket.on('random-user',async (data) => {
-    console.log('on random-user', data); 
-    // searching = false;
-    if(data.action == 'call'){
-        callToUser(data.userId);
-    }else if(data.action == 'receive'){ 
-
-    }
-})  
+    socket.on('call-answered',async (data) => { 
+        console.log('on call-answered', data);  
+         
+        await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(data.answer)
+        );  
+    }) 
+    socket.on('ice-candidate',async (data) => { 
+        console.log('on ice-candidate', data);  
+        peerConnection.addIceCandidate(data);
+    }) 
+    
+    socket.on('match-user',async (data) => {
+        console.log('on match-user', data); 
  
-socket.on('conn-destroy',async (userId) => {
-    if(currentGuestConnection && currentGuestConnection.peer == userId){
-        console.log('guest peer closed');
-        if(autoSearch){
-            socket.emit('get-random-user')
+        $('#guest-username').html(data.name) 
+
+        if(data.action == 'call'){
+            makeCall(data.to)
+            guest = { socket : data.to}
+        }else if(data.action == 'receive'){
+            guest = { socket : data.from }
         }
+    })   
+     
+    
+    socket.on('disconnect',async () => {
+        console.log('socket disconnect'); 
+    })  
+    function setStatus(status){
+        // myStatus = status;
+        myStatusElement.innerHTML = status;
     }
-})  
- 
-socket.on('disconnect',async () => {
-    console.log('socket disconnect'); 
-}) 
 
-function disconnectFromUser(){
-    if(currentGuestConnection){
-        console.log('destroy media conn' , currentGuestConnection);
-        socket.emit('conn-destroy', currentGuestConnection.peer)
-        currentGuestConnection.close()
-        currentGuestConnection =null;
-    }
-}
-
-function startAutoSearch(){  
-    // searching = true;
-    if(autoSearch){ 
-        disconnectFromUser();
-    }else{ 
+    $('#btn-start').click(async ()=>{ 
+        autoSearch = true;
         $('#btn-stop').show()
-        $('#btn-start').html('Next')
-    
-        disconnectFromUser();
-        socket.emit('get-random-user')
-    }
-    autoSearch = true;
-}
-  
-function stopAutoSearch(){ 
-    autoSearch = false;
-    $('#btn-stop').hide() 
-    $('#btn-start').html('Start')
-    
-    disconnectFromUser();
-}
-  
-// return ;
-// const getUserMediaSync = function(options){
-//     return new Promise((resolve, reject)=>{
-//         var getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia; 
-//         getUserMedia(options || { audio: true, video: true }, 
-//             stream => { 
-//                 resolve(stream);
-//         })  
-//     }) 
-// }
-
-// const socket = io("/");
-// const videoGrid = document.getElementById("video-grid");
-// const myVideo = document.createElement("video");
-// myVideo.muted = true;
-// var peer = null;
-
-// const addVideoStream = (video, stream) => {
-//     video.srcObject = stream;
-//     video.addEventListener("loadedmetadata", () => {
-//         video.play();
-//         videoGrid.append(video);
-//     });
-// };
-// const connectToNewUser = (userId, stream) => {
-//     console.log('call to user : ' ,userId ,stream);
-//     const call = peer.call(userId, stream);
-//     const video = document.createElement("video");
-//     call.on("stream", (userVideoStream) => {
-//         console.log('stream-from : ' ,userId , userVideoStream);
-//         addVideoStream(video, userVideoStream);
-//     });
-// };
-
-// function connected(){ 
-//     let myVideoStream;
-
-//     peer = new Peer(undefined, {
-//         path: "/peerjs",
-//         host: "/",
-//         port: "3030",
-//     }); 
-
-//     peer.on("open", async (userId) => {
-//         console.log('ready , userId : ' ,userId );
+        $('#btn-start').html('Next')   
         
-//         myVideoStream = await getUserMediaSync();  
+        if(peerConnection){
+            peerConnection.close()
+            peerConnection = null;
+        }
+        socket.emit("get-random-user", {  });
+    }) 
+    
+    $('#btn-stop').click(()=>{
+        autoSearch = false;
+        $('#btn-stop').hide() 
+        $('#btn-start').html('Start') 
+    }) 
 
-//         addVideoStream(myVideo, myVideoStream);
+})()
 
-//         peer.on("call", (call) => {
-//             console.log('call from : ' ,call );
-//             call.answer(myVideoStream);
-//             call.on("stream", (userVideoStream) => {
-//                 console.log('stream from : ' ,userVideoStream );
-//                 const video = document.createElement("video");
-//                 addVideoStream(video, userVideoStream);
-//             });
-//         });
-
-//         socket.on("user-connected", (userId) => {
-//             setTimeout(connectToNewUser, 2000, userId, myVideoStream);
-//             // connectToNewUser(userId, stream);
-//         });
-        
-//         socket.emit("join-room", ROOM_ID, userId);
-//     });
-//     peer.on('error', (err) => { 
-//         console.error('peerjs', err);
-//     });
-// }
-
-// socket.on('connect',()=>{
-//     console.log('connected');
-//     connected();
-// })

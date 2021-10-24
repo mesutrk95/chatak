@@ -14,22 +14,32 @@
     <body>  
         <div class="video-panel">
             <div class="left-panel">
-                <video id="my-video" ></video>
-                <div class="panel-overlay"> 
+                <video id="my-video" autoplay muted></video>
+                <div class="panel-overlay"></div>
+                <div class="panel-overlay bottom"> 
                     <div class="content">My Video</div>
                 </div>
             </div>
             <div class="right-panel"> 
-                <video id="guest-video" ></video>
-                <div class="panel-overlay">
-                    <div class="content">Guest Video</div>
+                <video id="guest-video" autoplay></video>
+                <div class="panel-overlay"></div>
+                <div class="panel-overlay bottom">
+                    <div class="content">Guest 
+                        <span id="guest-username"></span>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="options">
-            <label id="my-status"></label>
-            <button id="btn-stop" onclick="stopAutoSearch()" style="display: none;">Stop</button>
-            <button id="btn-start" onclick="startAutoSearch()">Start</button>
+            <div class="left">
+                <label id="my-username">user</label>
+            </div>
+            <div class="right">
+                <label id="my-status"></label>
+                <button id="btn-stop" style="display: none;background-color: brown;">Stop</button>
+                <button id="btn-start" >Start</button>
+
+            </div>
         </div>
     </body>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>

@@ -1,99 +1,136 @@
 const { v4: uuidv4 } = require("uuid");
+const Config = require("./config");
 
-const express = require("express");
-const app = express();
-const { ExpressPeerServer } = require("peer");
+const fs = require("fs");
+const express = require("express"); 
+const jwt = require('jsonwebtoken'); 
+const app = express(); 
 const server = require("http").Server(app);
 
 const io = require("socket.io")(server);
 
 app.set('view engine', 'ejs') 
+app.use(express.urlencoded());
 
 app.use(express.static('public'));
 app.use('/socket.io', express.static('node_modules/socket.io/client-dist'));
    
-const peerServer = ExpressPeerServer(server, {
-    debug: true,
-}); 
+const cert = fs.readFileSync(Config.jwt.privateKey);   
+const publicKeyJwt = fs.readFileSync(Config.jwt.publicKey);  
 
-app.use('/peerjs', peerServer);
- 
-app.get("/", (req, res) => {
-    // res.status(200).send("Hello World");
+function isValidToken(token){
+    return new Promise((resolve, reject)=>{
+        if (token == null) return resolve(false) 
+      
+        jwt.verify(token, publicKeyJwt ,{ algorithms: [Config.jwt.algorithm] },  (err, payload) => { 
+          if (err) return resolve(false)
+          return resolve(true);
+        })
+    })
+}
+
+app.get("/", (req, res) => { 
     res.render("index", {}); 
 });
+  
+app.post("/auth", (req, res) => { 
+    var profile= {
+        username : req.body.username
+    }
+    var token = jwt.sign(profile, cert, 
+        { expiresIn: '14 days', algorithm: Config.jwt.algorithm });
 
-// app.get("/:room", (req, res) => {
-//     res.render("index", { roomId: req.params.room });
-// });
+    res.json({
+        status: 'ok', 
+        result : {
+            token,
+            username: profile.username
+        }
+    })
+});
+  
+let users = new Map
+let userSockets = new Map
+let searchingUsers = new Set;
+// let searchingUsersOffer = new Map;
+ 
+function getRandomUser(exceptUser){ 
+    let sus = Array.from(searchingUsers);
+    let randomUser ;
+    do{
+        let randomIndex = Math.floor(Math.random() * searchingUsers.size);
+        randomUser = sus[randomIndex]
+    } while(randomUser == exceptUser) 
 
-let users = new Map();
-let liveChats = new Map();
-let searchingUsers = new Set();
+    return randomUser
+}
+
+
+io.use(async (socket, next) => { 
+    
+    const username = socket.handshake.query.username;
+    const token = socket.handshake.auth.token;
+    console.log('[auth-user]', username);
+    const isValid = await isValidToken(token);
+    if(isValid) { 
+        users.set(socket.id , username)
+        userSockets.set(username , socket.id)
+        next();
+    }
+    else{
+        next(new Error("auth failed, no user found"));
+    } 
+});
 
 io.on("connection", (socket) => {
 
-    socket.on("join", (userId) => { 
-        console.log('joined => sid : ' + socket.id + ', uid = ' + userId); 
+    socket.on('get-random-user', (data) => {
+        let user = users.get(socket.id)
+        console.log('get-random-user', user, data);   
+ 
+        if(searchingUsers.size > 0 && !searchingUsers.has(user)){
+            let guser = getRandomUser(socket.id);
+            console.log('match :' , user, guser);
 
-        const user = { socket, userId };
-        users.set(socket.id, user)
+            // let goffer = searchingUsersOffer.get(guser) 
+            let guestSocketId = userSockets.get(guser)
 
-        /* debug log only */
-        console.log('active users : ' + users.size);  
-    }); 
+            io.to(guestSocketId).emit('match-user', 
+                { name: user , to : socket.id, action : 'call'}) 
+            socket.emit('match-user', 
+                { name: guser, from : guestSocketId, action : 'receive' })
 
-    // socket.on("toggle-user-search", ()=>{
-    //     let user = users.get(socket.id)
-    //     if(!user){
-    //         searchingUsers.set(user)
-    //         socket.emit('user-search-status' , true)  
-    //     }else{ 
-    //         searchingUsers.delete(user)
-    //         socket.emit('user-search-status' , false)
-    //     }
-    // }) 
-
-    socket.on("get-random-user", () => {
-        let u = users.get(socket.id)
-        if(u){
-            console.log('get-random-user : ' , u.userId);
+            // searchingUsersOffer.delete(guser)
+            searchingUsers.delete(guser)
+        }else{ 
+            searchingUsers.add(user)
+            // searchingUsersOffer.set(user , data.offer)
         }
-        
-        if(searchingUsers.size == 0){ 
-            searchingUsers.add(socket.id)
-        } else {
-            if(searchingUsers.size == 1 && searchingUsers.has(socket.id)){ 
-
-            }else{
-                let sus = Array.from(searchingUsers);
-                let guestId ;
-                do{
-                    let randomIndex = Math.floor(Math.random() * sus.length);
-                    guestId = sus[randomIndex]
-                }while(guestId == socket.id) 
-
-                searchingUsers.delete(guestId)
-                const fromUser = users.get(socket.id)
-                const toUser = users.get(guestId)
-                console.log('suggest : ' , guestId, socket.id);
-                socket.emit("random-user", { action : 'call', userId : toUser.userId});
-                io.to(guestId).emit("random-user", { action : 'receive',  userId : fromUser.userId});
-            }
-        } 
-    }); 
-
-    socket.on('conn-destroy', (data) => {
-        console.log('conn-destroy => ' + socket.id); 
-        socket.io[data.guestId].emit('conn-destroy', data.userId)
+    }) 
+ 
+    socket.on('make-call', (data) => { 
+        // let calleeUser = users.get(data.socketId)
+        io.to(data.to).emit('call', { 
+            offer : data.offer, from : socket.id
+        }) 
     })
+
+    socket.on('call-answer', (data) => { 
+        io.to(data.to).emit('call-answered', { 
+            answer : data.answer
+        })  
+    })
+    socket.on("ice-candidate", data => {
+      socket.to(data.to).emit("ice-candidate", data.candidate);
+    }); 
     socket.on('disconnect', (e) => {
         console.log('disconnect => ' + socket.id);
-        users.delete(socket.id)
-        searchingUsers.delete(socket.id)
+        let user = users.get(socket.id);
+        users.delete(socket.id) 
+        userSockets.delete(user)
     })
 }); 
 
 server.listen(3030);
 
-console.log('started');
+console.log('started 3030');
