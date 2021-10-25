@@ -94,3 +94,12 @@ body{
   color: white;
   align-self: center;
 }
+
+.col-12 {
+  display: inline;
+  width: 100%; 
+}
+.col-6 {
+  display: inline;
+  width: 50%; 
+}
