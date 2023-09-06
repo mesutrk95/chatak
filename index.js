@@ -1,10 +1,9 @@
-const { v4: uuidv4 } = require("uuid");
-const Config = require("./config");
+const { v4: uuidv4 } = require("uuid"); 
 
+const { JWT_SECRET, PORT } = process.env; 
 const fs = require("fs");
 const express = require("express"); 
 const jwt = require('jsonwebtoken'); 
-const { disconnect } = require("process");
 const app = express(); 
 const server = require("http").Server(app);
 
@@ -15,15 +14,12 @@ app.use(express.urlencoded());
 
 app.use(express.static('public'));
 app.use('/socket.io', express.static('node_modules/socket.io/client-dist'));
-   
-const cert = fs.readFileSync(Config.jwt.privateKey);   
-const publicKeyJwt = fs.readFileSync(Config.jwt.publicKey);  
 
 function isValidToken(token){
     return new Promise((resolve, reject)=>{
         if (token == null) return resolve(false) 
       
-        jwt.verify(token, publicKeyJwt ,{ algorithms: [Config.jwt.algorithm] },  (err, payload) => { 
+        jwt.verify(token, JWT_SECRET, (err, payload) => { 
           if (err) return resolve(false)
           return resolve(true);
         })
@@ -38,8 +34,8 @@ app.post("/auth", (req, res) => {
     var profile= {
         username : req.body.username
     }
-    var token = jwt.sign(profile, cert, 
-        { expiresIn: '14 days', algorithm: Config.jwt.algorithm });
+    var token = jwt.sign(profile, JWT_SECRET, 
+        { expiresIn: '14 days' });
 
     res.json({
         status: 'ok', 
@@ -191,6 +187,6 @@ io.on("connection", (socket) => {
     socket.on('disconnect', (e) => disconnect('disconnect', e))
 }); 
 
-server.listen(Config.port);
+server.listen(PORT);
 
-console.log('chatak server running on : ' + Config.port);
+console.log('chatak server running on : ' + PORT);
